@@ -11,8 +11,8 @@ android {
         applicationId "com.bloise.mbfmonitor"
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
     }
 
     buildTypes {
@@ -35,4 +35,14 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.webkit:webkit:1.11.0'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+
+    // Firebase Cloud Messaging (push)
+    implementation platform('com.google.firebase:firebase-bom:33.1.2')
+    implementation 'com.google.firebase:firebase-messaging'
+}
+
+// Aplica o plugin do Google Services apenas se o google-services.json existir,
+// para o build não quebrar quando o arquivo ainda não foi fornecido.
+if (file("google-services.json").exists()) {
+    apply plugin: 'com.google.gms.google-services'
 }

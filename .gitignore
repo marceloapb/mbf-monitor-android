@@ -4,6 +4,7 @@ app/build/
 local.properties
 *.keystore
 *.jks
+app/google-services.json
 .idea/
 *.iml
 .DS_Store

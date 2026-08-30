@@ -26,6 +26,17 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Injetar google-services.json (se o secret existir)
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > app/google-services.json
+            echo "google-services.json injetado (push habilitado)."
+          else
+            echo "Sem secret GOOGLE_SERVICES_JSON_BASE64 — build sem push (google-services.json ausente)."
+          fi
+
       - name: Gerar Gradle wrapper
         run: gradle wrapper --gradle-version 8.7
 

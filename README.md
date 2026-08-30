@@ -28,6 +28,40 @@ O APK é compilado automaticamente pelo **GitHub Actions** a cada push na `main`
 O APK é assinado no CI com uma keystore gerada na hora (uso pessoal). Para publicar na
 Play Store ou ter atualizações estáveis, gere uma keystore fixa e guarde como secret.
 
+## Notificações push (FCM)
+
+O app recebe push quando o backend detecta e-mail(s) novo(s) da AWS. Usa Firebase Cloud
+Messaging (gratuito). Passo a passo (feito uma vez):
+
+### 1. Criar o projeto no Firebase
+1. Acesse https://console.firebase.google.com e crie um projeto (plano **Spark**, grátis).
+2. Adicione um app **Android** com o package **`com.bloise.mbfmonitor`**.
+3. Baixe o **`google-services.json`**.
+
+### 2. Habilitar o push no build (app)
+Converta o arquivo em base64 e cadastre como secret do repositório:
+
+- Secret: **`GOOGLE_SERVICES_JSON_BASE64`** (Settings → Secrets → Actions).
+  - Linux/Mac: `base64 -w0 google-services.json`
+  - Windows PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("google-services.json"))`
+
+O workflow injeta o arquivo automaticamente e ativa o FCM no APK.
+
+### 3. Habilitar o envio no backend (Lambda)
+1. No Firebase → Configurações do projeto → **Contas de serviço** → **Gerar nova chave privada**
+   (baixa um JSON da service account).
+2. Guarde esse JSON no SSM (SecureString) do backend, no parâmetro
+   **`/mbf/prod/cost-dashboard/fcm-service-account`**:
+
+```
+aws ssm put-parameter --name "/mbf/prod/cost-dashboard/fcm-service-account" \
+  --type SecureString --overwrite --value file://service-account.json --region us-east-1
+```
+
+Pronto: no próximo scan que achar e-mail novo, o push chega no celular. Sem esses arquivos,
+o app funciona normal (só sem push).
+
+
 ## Build local (opcional)
 
 Requer Android SDK + JDK 17:

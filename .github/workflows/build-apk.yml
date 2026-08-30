@@ -1,0 +1,65 @@
+name: build-apk
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Gerar Gradle wrapper
+        run: gradle wrapper --gradle-version 8.7
+
+      - name: Build APK release (nao assinado)
+        run: ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Gerar keystore de assinatura
+        run: |
+          keytool -genkeypair -v \
+            -keystore release.keystore \
+            -storepass mbfmonitor \
+            -keypass mbfmonitor \
+            -alias mbf \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=MBF Monitor, O=Bloise Tech, L=SP, C=BR"
+
+      - name: Assinar e alinhar o APK
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          echo "build-tools: $BT"
+          UNSIGNED=app/build/outputs/apk/release/app-release-unsigned.apk
+          "$BT/zipalign" -f -p 4 "$UNSIGNED" app/build/outputs/apk/release/mbf-monitor-aligned.apk
+          "$BT/apksigner" sign \
+            --ks release.keystore \
+            --ks-pass pass:mbfmonitor \
+            --key-pass pass:mbfmonitor \
+            --ks-key-alias mbf \
+            --out mbf-monitor.apk \
+            app/build/outputs/apk/release/mbf-monitor-aligned.apk
+          "$BT/apksigner" verify --verbose mbf-monitor.apk
+
+      - name: Publicar APK como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mbf-monitor-apk
+          path: mbf-monitor.apk
+          if-no-files-found: error

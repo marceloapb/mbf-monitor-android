@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Logo "B" laranja no centro (zona segura ~66x66 no centro de 108x108). -->
+    <group android:translateX="34" android:translateY="30">
+        <!-- haste superior + curva de cima -->
+        <path
+            android:fillColor="#ff6600"
+            android:pathData="M2,0 h26 a12,12 0 0 1 0,24 H8 v-7 h20 a5,5 0 0 0 0,-10 H9 v24 H2 Z" />
+        <!-- curva inferior -->
+        <path
+            android:fillColor="#ff6600"
+            android:pathData="M8,20 h20 a14,14 0 0 1 0,28 H2 V41 h26 a5,5 0 0 0 0,-10 H8 Z" />
+        <!-- quadradinho destacado -->
+        <path
+            android:fillColor="#ff6600"
+            android:pathData="M-6,22 h8 v8 h-8 z" />
+    </group>
+</vector>

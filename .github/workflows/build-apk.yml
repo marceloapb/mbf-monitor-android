@@ -1,9 +1,12 @@
 name: build-apk
 
+# Economia: o APK NÃO é compilado a cada push. Rode manualmente (workflow_dispatch)
+# quando quiser um novo APK, ou crie uma tag de versão (ex.: v1.2) para gerar um release.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
@@ -11,6 +14,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 

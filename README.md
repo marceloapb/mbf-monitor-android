@@ -9,8 +9,9 @@ e-mails com IA) para o celular, num WebView em tela cheia apontando para o paine
 
 ## Como obter o APK
 
-O APK é compilado automaticamente pelo **GitHub Actions** a cada push na `main`
-(ou manualmente em Actions → build-apk → Run workflow).
+O APK é gerado somente **manualmente** (Actions → build-apk → Run workflow)
+ou ao publicar uma tag `v*`. Isso reduz minutos de runner e evita releases
+acidentais. O build exige os secrets de assinatura permanente abaixo.
 
 1. Acesse a aba **Actions** do repositório.
 2. Abra a execução mais recente do workflow **build-apk**.
@@ -25,8 +26,26 @@ O APK é compilado automaticamente pelo **GitHub Actions** a cada push na `main`
 
 ## Assinatura
 
-O APK é assinado no CI com uma keystore gerada na hora (uso pessoal). Para publicar na
-Play Store ou ter atualizações estáveis, gere uma keystore fixa e guarde como secret.
+O APK é assinado com uma **keystore persistente**, protegida nos GitHub Actions
+Secrets. Não há mais geração automática de uma chave diferente em cada execução.
+
+Antes de gerar o próximo APK, faça a configuração uma única vez:
+
+1. Gere e guarde uma keystore em um computador seguro com `keytool -genkeypair -v -keystore mbf-monitor-release.jks -alias mbf -keyalg RSA -keysize 3072 -validity 10000`. Use senhas fortes informadas interativamente e mantenha backup seguro fora do repositório.
+2. Em **Settings → Secrets and variables → Actions**, cadastre:
+   - `MBF_MONITOR_KEYSTORE_BASE64`: conteúdo do arquivo `.jks` codificado em base64 (uma única linha, sem quebra).
+   - `MBF_MONITOR_KEYSTORE_PASSWORD`: senha da keystore.
+   - `MBF_MONITOR_KEY_ALIAS`: alias criado (`mbf`, se usar o comando acima).
+   - `MBF_MONITOR_KEY_PASSWORD`: senha da chave (pode ser a mesma senha da keystore).
+3. Execute o workflow `build-apk` e valide a assinatura do APK antes de distribuir.
+
+O build **falha antes de compilar** quando algum secret estiver ausente, em vez de
+publicar APK assinado com chave descartável. Nunca comite a keystore ou senhas.
+
+**Atenção:** APKs anteriormente distribuídos foram assinados com chaves
+efêmeras diferentes. Não é possível atualizá-los com a nova assinatura sem a
+chave original. Será necessária uma desinstalação/reinstalação inicial. Depois
+disso, mantenha **a mesma keystore** em todas as versões para permitir updates.
 
 ## Notificações push (FCM)
 

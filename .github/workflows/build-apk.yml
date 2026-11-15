@@ -16,19 +16,46 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - name: Verify stable signing identity
+        env:
+          MBF_MONITOR_KEYSTORE_BASE64: ${{ secrets.MBF_MONITOR_KEYSTORE_BASE64 }}
+          MBF_MONITOR_KEYSTORE_PASSWORD: ${{ secrets.MBF_MONITOR_KEYSTORE_PASSWORD }}
+          MBF_MONITOR_KEY_ALIAS: ${{ secrets.MBF_MONITOR_KEY_ALIAS }}
+          MBF_MONITOR_KEY_PASSWORD: ${{ secrets.MBF_MONITOR_KEY_PASSWORD }}
+        run: |
+          for name in MBF_MONITOR_KEYSTORE_BASE64 MBF_MONITOR_KEYSTORE_PASSWORD MBF_MONITOR_KEY_ALIAS MBF_MONITOR_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing secret $name. Configure stable APK signing secrets before releasing."
+              exit 1
+            fi
+          done
+          echo "Stable signing secrets are configured."
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Verify preinstalled Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          test -d "$SDK_ROOT" || { echo "::error::Android SDK not found"; exit 1; }
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -x "$SDKMANAGER" || { echo "::error::sdkmanager not found"; exit 1; }
+          if [ ! -d "$SDK_ROOT/platforms/android-34" ] || [ ! -d "$SDK_ROOT/build-tools/34.0.0" ]; then
+            yes | "$SDKMANAGER" --licenses >/dev/null || true
+            "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0"
+          fi
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Injetar google-services.json (se o secret existir)
         env:
@@ -47,30 +74,32 @@ jobs:
       - name: Build APK release (nao assinado)
         run: ./gradlew :app:assembleRelease --no-daemon
 
-      - name: Gerar keystore de assinatura
+      - name: Alinhar e assinar com keystore persistente
+        env:
+          MBF_MONITOR_KEYSTORE_BASE64: ${{ secrets.MBF_MONITOR_KEYSTORE_BASE64 }}
+          MBF_MONITOR_KEYSTORE_PASSWORD: ${{ secrets.MBF_MONITOR_KEYSTORE_PASSWORD }}
+          MBF_MONITOR_KEY_ALIAS: ${{ secrets.MBF_MONITOR_KEY_ALIAS }}
+          MBF_MONITOR_KEY_PASSWORD: ${{ secrets.MBF_MONITOR_KEY_PASSWORD }}
+        shell: bash
         run: |
-          keytool -genkeypair -v \
-            -keystore release.keystore \
-            -storepass mbfmonitor \
-            -keypass mbfmonitor \
-            -alias mbf \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=MBF Monitor, O=Bloise Tech, L=SP, C=BR"
-
-      - name: Assinar e alinhar o APK
-        run: |
-          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
-          echo "build-tools: $BT"
-          UNSIGNED=app/build/outputs/apk/release/app-release-unsigned.apk
-          "$BT/zipalign" -f -p 4 "$UNSIGNED" app/build/outputs/apk/release/mbf-monitor-aligned.apk
+          set -euo pipefail
+          # A keystore é um secret estável; nunca gerar outra automaticamente.
+          KEYSTORE="$RUNNER_TEMP/mbf-monitor-signing.keystore"
+          printf '%s' "$MBF_MONITOR_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)"
+          UNSIGNED="app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$UNSIGNED"
+          "$BT/zipalign" -f -p 4 "$UNSIGNED" "$RUNNER_TEMP/mbf-monitor-aligned.apk"
           "$BT/apksigner" sign \
-            --ks release.keystore \
-            --ks-pass pass:mbfmonitor \
-            --key-pass pass:mbfmonitor \
-            --ks-key-alias mbf \
+            --ks "$KEYSTORE" \
+            --ks-pass env:MBF_MONITOR_KEYSTORE_PASSWORD \
+            --key-pass env:MBF_MONITOR_KEY_PASSWORD \
+            --ks-key-alias "$MBF_MONITOR_KEY_ALIAS" \
             --out mbf-monitor.apk \
-            app/build/outputs/apk/release/mbf-monitor-aligned.apk
-          "$BT/apksigner" verify --verbose mbf-monitor.apk
+            "$RUNNER_TEMP/mbf-monitor-aligned.apk"
+          "$BT/apksigner" verify --verbose --print-certs mbf-monitor.apk | grep -E 'Verified|Signer #1 certificate SHA-256 digest'
+          rm -f "$KEYSTORE"
 
       - name: Publicar APK como artifact
         uses: actions/upload-artifact@v4

@@ -18,7 +18,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            // Assinado no CI com a keystore gerada (signingConfig via linha de comando).
+            // Assinado fora do Gradle por apksigner com keystore persistente via GitHub Secrets.
         }
     }
     compileOptions {
